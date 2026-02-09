@@ -1,0 +1,144 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 30px;
+    background: var(--bg-white);
+}
+
+.imageWrapper {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 15px;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+}
+
+.image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+}
+
+.card:hover .image {
+    transform: scale(1.05);
+}
+
+.categoryBadge {
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
+    background: var(--primary-red);
+    color: white;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    z-index: 2;
+}
+
+.content {
+    padding: 5px 0;
+}
+
+.title {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    line-height: 1.3;
+    color: var(--text-black);
+    transition: color 0.2s;
+}
+
+.card:hover .title {
+    color: var(--primary-red);
+}
+
+.meta {
+    font-size: 0.75rem;
+    color: var(--text-meta);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.meta span {
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.excerpt {
+    font-size: 0.9rem;
+    color: var(--text-grey);
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.readMore {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-black);
+    display: flex;
+    align-items: center;
+}
+
+.readMore:hover {
+    color: var(--primary-red);
+}
+
+/* Variant: Horizontal Card (Small) */
+.cardHorizontal {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.cardHorizontal .imageWrapper {
+    width: 240px;
+    height: 135px;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    margin-right: 20px;
+    aspect-ratio: auto;
+}
+
+.cardHorizontal .title {
+    font-size: 1rem;
+    margin-bottom: 5px;
+}
+
+.cardHorizontal .meta {
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .cardHorizontal {
+        flex-direction: column;
+    }
+
+    .cardHorizontal .imageWrapper {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16/9;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+
+    .excerpt {
+        display: none;
+    }
+
+    .title {
+        font-size: 1rem;
+    }
+
+    .card {
+        margin-bottom: 20px;
+    }
+}
