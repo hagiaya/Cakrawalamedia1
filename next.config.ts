@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'cakrawalamedia.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'flsvqqofbsrkozgilbsj.supabase.co',
+      },
     ],
   },
 };

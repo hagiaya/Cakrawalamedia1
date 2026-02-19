@@ -15,9 +15,24 @@ export default function AdminLayout({
 }: {
     children: React.ReactNode
 }) {
-    const { role, user, setRole } = useAuth();
+    const { role, user, setRole, loading, signOut } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
+
+    if (loading) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                background: '#f4f6f8',
+                color: '#666'
+            }}>
+                Wait a moment...
+            </div>
+        );
+    }
 
     if (role === 'guest') {
         return (
@@ -31,7 +46,10 @@ export default function AdminLayout({
             }}>
                 <h1 style={{ marginBottom: '20px', color: '#333' }}>Akses Ditolak</h1>
                 <p style={{ marginBottom: '30px', color: '#666' }}>Anda harus login sebagai Admin atau Wartawan.</p>
-                <button onClick={() => router.push('/')} className="btn btn-primary">Kembali ke Home</button>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    <button onClick={() => router.push('/')} className="style-btn-primary" style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Kembali ke Home</button>
+                    <button onClick={() => router.push('/login')} className="style-btn-secondary" style={{ padding: '10px 20px', background: '#cc0000', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Login</button>
+                </div>
             </div>
         );
     }
@@ -94,13 +112,6 @@ export default function AdminLayout({
                         </>
                     )}
 
-                    {/* Role Switcher (Dev Only) */}
-                    <div className={styles.menuLabel} style={{ marginTop: '20px', color: '#cc0000' }}>Dev Mode: Switch Role</div>
-                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                        <button onClick={() => setRole('redaktur')} style={{ fontSize: '0.7rem', padding: '5px', cursor: 'pointer', background: role === 'redaktur' ? '#cc0000' : '#eee', color: role === 'redaktur' ? 'white' : '#333', border: 'none', borderRadius: '4px' }}>Redaksi</button>
-                        <button onClick={() => setRole('editor')} style={{ fontSize: '0.7rem', padding: '5px', cursor: 'pointer', background: role === 'editor' ? '#cc0000' : '#eee', color: role === 'editor' ? 'white' : '#333', border: 'none', borderRadius: '4px' }}>Editor</button>
-                        <button onClick={() => setRole('wartawan')} style={{ fontSize: '0.7rem', padding: '5px', cursor: 'pointer', background: role === 'wartawan' ? '#cc0000' : '#eee', color: role === 'wartawan' ? 'white' : '#333', border: 'none', borderRadius: '4px' }}>Wartawan</button>
-                    </div>
                 </nav>
 
                 <div className={styles.userProfile}>
@@ -109,7 +120,7 @@ export default function AdminLayout({
                         <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'capitalize' }}>{role}</div>
                     </div>
                     <button
-                        onClick={() => { setRole('guest'); router.push('/'); }}
+                        onClick={signOut}
                         className={styles.menuItem}
                         style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '5px' }}
                         title="Logout"

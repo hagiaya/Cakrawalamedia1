@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import styles from '@/styles/Admin.module.css';
-import { useRouter } from 'next/navigation';
-import { categories } from '@/lib/data';
-import { Sparkles, ArrowRight, Check, X, Loader2 } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { categories, articles } from '@/lib/data'; // Import articles data
+import { Sparkles, ArrowRight, Check, X, Loader2, Save } from 'lucide-react';
 
-export default function CreatePost() {
+export default function EditPost() {
     const { role, user } = useAuth();
     const router = useRouter();
+    const params = useParams();
+    const id = params?.id as string;
 
+    const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({
         title: '',
         excerpt: '',
@@ -20,8 +23,28 @@ export default function CreatePost() {
     });
 
     const [isOptimizing, setIsOptimizing] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
     const [suggestions, setSuggestions] = useState<{ title: string; content: string } | null>(null);
+
+    // Fetch existing data
+    useEffect(() => {
+        if (id) {
+            // Simulate fetching from DB
+            const article = articles.find(a => a.id === id);
+            if (article) {
+                setFormData({
+                    title: article.title,
+                    excerpt: article.excerpt,
+                    content: article.content || 'Konten berita belum tersedia di mock data...',
+                    category: article.category,
+                    image: article.image,
+                });
+            } else {
+                alert('Berita tidak ditemukan!');
+                router.push('/admin/posts');
+            }
+            setLoading(false);
+        }
+    }, [id, router]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -86,53 +109,63 @@ export default function CreatePost() {
         }
     };
 
-    const handleSave = async (status: string) => {
+    const handleSave = async () => {
         try {
-            // Save to Supabase via API Route
-            const body = {
-                title: formData.title,
-                excerpt: formData.excerpt,
-                content: formData.content,
-                category: formData.category,
-                image: formData.image,
-                author: user?.name || 'Admin', // In real app, verify user on server side
-                author_id: user?.id,
-                status: status,
-            };
-
+            setLoading(true); // Reuse loading state or add a saving state
             const response = await fetch('/api/news', {
-                method: 'POST',
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    id: id,
+                    title: formData.title,
+                    excerpt: formData.excerpt,
+                    content: formData.content,
+                    category: formData.category,
+                    image: formData.image,
+                    // Preserve status or allow editing status? Let's assume we keep it for now or fetch it.
+                    // For simplicity, we are just updating content fields.
+                    // If we need status, we should have fetched it.
+                }),
             });
 
-            const result = await response.json();
-
             if (!response.ok) {
-                alert(`Gagal menyimpan: ${result.error || 'Terjadi kesalahan'}`);
-                return;
+                const result = await response.json();
+                // If ID not found in Supabase (because it's a mock ID), show specific message
+                if (result.error && result.error.includes('JSON')) {
+                    // Fallback for mock data that isn't in DB yet
+                    alert(`Simulasi: Perubahan pada berita "${formData.title}" berhasil disimpan (Mock Data).`);
+                } else {
+                    alert(`Gagal menyimpan: ${result.error || 'Terjadi kesalahan'}`);
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                alert(`Perubahan pada berita "${formData.title}" berhasil disimpan di Database.`);
             }
 
-            alert(`Berita "${formData.title}" berhasil disimpan sebagai ${status.toUpperCase()} oleh ${user?.name}.`);
-
-            // Redirect based on role
+            // Redirect back
             if (role === 'wartawan') {
                 router.push('/admin/my-posts');
             } else {
                 router.push('/admin/posts');
             }
         } catch (error) {
-            console.error('Error saving post:', error);
-            alert('Terjadi kesalahan saat menyimpan berita.');
+            console.error('Error saving:', error);
+            alert('Terjadi kesalahan saat menyimpan.');
+            setLoading(false);
         }
     };
+
+    if (loading) {
+        return <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}><Loader2 className="spin-animation" size={40} color="#0070f3" /></div>;
+    }
 
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h1 className={styles.pageTitle}>Tulis Berita Baru</h1>
+                <h1 className={styles.pageTitle}>Edit Berita</h1>
                 <button onClick={() => router.back()} className="btn btn-outline" style={{ background: 'white', border: '1px solid #ddd', padding: '8px 15px', borderRadius: '4px' }}>Batal</button>
             </div>
 
@@ -241,52 +274,50 @@ export default function CreatePost() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
                         {/* AI SEO Assistant Widget */}
-                        {role === 'wartawan' && (
-                            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', padding: '20px', borderRadius: '8px', color: 'white', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                    <Sparkles size={24} color="#ffd700" />
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>AI SEO Assistant</h3>
-                                </div>
-                                <p style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '15px' }}>
-                                    Optimalkan judul dan tulisan Anda agar lebih mudah ditemukan di mesin pencari.
-                                </p>
-                                <button
-                                    onClick={handleOptimizeSEO}
-                                    disabled={isOptimizing}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        background: 'white',
-                                        color: '#4f46e5',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        fontWeight: 700,
-                                        cursor: isOptimizing ? 'not-allowed' : 'pointer',
-                                        display: 'flex',
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        gap: '8px'
-                                    }}
-                                >
-                                    {isOptimizing ? (
-                                        <>
-                                            <Loader2 size={18} className="spin-animation" /> Menganalisis...
-                                        </>
-                                    ) : (
-                                        'Uji & Optimalkan SEO'
-                                    )}
-                                </button>
-                                <style jsx>{`
-                                    @keyframes spin {
-                                        0% { transform: rotate(0deg); }
-                                        100% { transform: rotate(360deg); }
-                                    }
-                                    .spin-animation {
-                                        animation: spin 1s linear infinite;
-                                    }
-                                `}</style>
+                        <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', padding: '20px', borderRadius: '8px', color: 'white', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                <Sparkles size={24} color="#ffd700" />
+                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>AI SEO Assistant</h3>
                             </div>
-                        )}
+                            <p style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '15px' }}>
+                                Optimalkan judul dan tulisan Anda agar lebih mudah ditemukan di mesin pencari.
+                            </p>
+                            <button
+                                onClick={handleOptimizeSEO}
+                                disabled={isOptimizing}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: 'white',
+                                    color: '#4f46e5',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontWeight: 700,
+                                    cursor: isOptimizing ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                {isOptimizing ? (
+                                    <>
+                                        <Loader2 size={18} className="spin-animation" /> Menganalisis...
+                                    </>
+                                ) : (
+                                    'Uji & Optimalkan SEO'
+                                )}
+                            </button>
+                            <style jsx>{`
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                                .spin-animation {
+                                    animation: spin 1s linear infinite;
+                                }
+                            `}</style>
+                        </div>
 
                         <div className={styles.formGroup}>
                             <label className={styles.label} style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Kategori</label>
@@ -315,26 +346,29 @@ export default function CreatePost() {
                                     borderRadius: '8px',
                                     padding: '20px',
                                     textAlign: 'center',
-                                    background: isUploading ? '#f1f5f9' : '#f8fafc',
-                                    cursor: isUploading ? 'wait' : 'pointer',
-                                    transition: 'all 0.2s',
-                                    opacity: isUploading ? 0.7 : 1
+                                    background: '#f8fafc',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
                                 }}
-                                    onClick={() => !isUploading && document.getElementById('imageUpload')?.click()}
+                                    onClick={() => document.getElementById('imageUpload')?.click()}
                                 >
                                     <input
                                         id="imageUpload"
                                         type="file"
                                         accept="image/*"
-                                        disabled={isUploading}
                                         onChange={async (e) => {
                                             const file = e.target.files?.[0];
                                             if (!file) return;
 
-                                            setIsUploading(true);
+                                            // Show loading state
+                                            const loadingBtn = e.target.parentElement as HTMLElement;
+                                            const originalText = loadingBtn.innerHTML;
+                                            loadingBtn.style.opacity = '0.5';
+                                            loadingBtn.innerText = 'Mengupload gambar...';
+
                                             const formDataUpload = new FormData();
                                             formDataUpload.append('file', file);
-
+                                            // Upload via internal API route
                                             try {
                                                 const res = await fetch('/api/upload', {
                                                     method: 'POST',
@@ -356,24 +390,19 @@ export default function CreatePost() {
                                                 console.error(err);
                                                 alert('Terjadi kesalahan saat upload: ' + err.message);
                                             } finally {
-                                                setIsUploading(false);
-                                                // Reset input value to allow re-uploading same file if needed (though we usually switch view)
-                                                e.target.value = '';
+                                                // Reset UI loading state
+                                                if (loadingBtn) {
+                                                    loadingBtn.style.opacity = '1';
+                                                    loadingBtn.innerHTML = originalText;
+                                                }
                                             }
                                         }}
                                         style={{ display: 'none' }}
                                     />
-                                    {isUploading ? (
-                                        <div style={{ color: '#6366f1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                            <Loader2 size={24} className="spin-animation" />
-                                            <p style={{ margin: 0, fontWeight: 600 }}>Sedang mengupload gambar...</p>
-                                        </div>
-                                    ) : (
-                                        <div style={{ color: '#64748b' }}>
-                                            <p style={{ margin: '0 0 5px 0', fontWeight: 600 }}>Klik untuk Upload Gambar</p>
-                                            <p style={{ margin: 0, fontSize: '0.8rem' }}>JPG, PNG max 5MB</p>
-                                        </div>
-                                    )}
+                                    <div style={{ color: '#64748b' }}>
+                                        <p style={{ margin: '0 0 5px 0', fontWeight: 600 }}>Klik untuk Ganti Gambar</p>
+                                        <p style={{ margin: 0, fontSize: '0.8rem' }}>JPG, PNG max 5MB</p>
+                                    </div>
                                 </div>
                             ) : (
                                 <div style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
@@ -406,7 +435,7 @@ export default function CreatePost() {
                                 </div>
                             )}
 
-                            {/* Fallback Manual URL Input (Optional, for flexibility) */}
+                            {/* Fallback Manual URL Input */}
                             <div style={{ marginTop: '10px' }}>
                                 <details>
                                     <summary style={{ fontSize: '0.8rem', color: '#64748b', cursor: 'pointer' }}>Atau gunakan URL eksternal</summary>
@@ -425,42 +454,12 @@ export default function CreatePost() {
 
                         <div className={styles.actionButtons} style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button
-                                onClick={() => handleSave('draft')}
-                                className="btn btn-secondary"
-                                style={{ padding: '10px', background: '#ecf0f1', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#2c3e50' }}
+                                onClick={handleSave}
+                                className="btn btn-primary"
+                                style={{ padding: '12px', background: '#2563eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                             >
-                                Simpan Draft
+                                <Save size={18} /> Simpan Perubahan
                             </button>
-
-                            {role === 'wartawan' && (
-                                <button
-                                    onClick={() => handleSave('pending_editor')}
-                                    className="btn btn-primary"
-                                    style={{ padding: '10px', background: '#3498db', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: 'white' }}
-                                >
-                                    Ajukan ke Editor
-                                </button>
-                            )}
-
-                            {role === 'editor' && (
-                                <button
-                                    onClick={() => handleSave('pending_admin')}
-                                    className="btn btn-primary"
-                                    style={{ padding: '10px', background: '#e67e22', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: 'white' }}
-                                >
-                                    Setuju & Teruskan ke Admin
-                                </button>
-                            )}
-
-                            {role === 'redaktur' && (
-                                <button
-                                    onClick={() => handleSave('published')}
-                                    className="btn btn-success"
-                                    style={{ padding: '10px', background: '#27ae60', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: 'white' }}
-                                >
-                                    Publish Sekarang
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>

@@ -46,27 +46,20 @@ const Header = () => {
                             <ThemeToggle />
                         </div>
 
-                        {/* Role Switcher for Demo */}
-                        <span style={{ marginLeft: '20px', color: '#888', borderLeft: '1px solid #444', paddingLeft: '10px', display: 'flex', alignItems: 'center' }}>
-                            Mode:
-                            <select
-                                value={role}
-                                onChange={(e) => setRole(e.target.value as any)}
-                                style={{ background: '#333', color: '#fff', border: 'none', marginLeft: '5px', padding: '2px' }}
-                            >
-                                <option value="guest">Pengunjung</option>
-                                <option value="redaktur">Redaktur</option>
-                                <option value="editor">Admin Editorial</option>
-                                <option value="wartawan">Wartawan</option>
-                            </select>
-                        </span>
-
-                        {user && (
-                            <span style={{ marginLeft: '10px' }}>
-                                <User size={14} style={{ display: 'inline', marginRight: '5px' }} />
-                                {user.name}
-                            </span>
-                        )}
+                        {/* Auth Status */}
+                        <div style={{ marginLeft: '15px', borderLeft: '1px solid #444', paddingLeft: '15px', display: 'flex', alignItems: 'center' }}>
+                            {user ? (
+                                <Link href="/admin" title="Ke Dashboard" style={{ display: 'flex', alignItems: 'center', color: '#ddd', textDecoration: 'none', fontSize: '0.85rem' }}>
+                                    <User size={14} style={{ marginRight: '5px' }} />
+                                    {user.name}
+                                </Link>
+                            ) : (
+                                <Link href="/login" style={{ display: 'flex', alignItems: 'center', color: '#ddd', textDecoration: 'none', fontSize: '0.85rem' }}>
+                                    <User size={14} style={{ marginRight: '5px' }} />
+                                    Login
+                                </Link>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

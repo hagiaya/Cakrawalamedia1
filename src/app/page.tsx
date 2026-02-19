@@ -2,38 +2,107 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { articles } from '@/lib/data';
+// import { articles } from '@/lib/data'; // Remove static data
 import styles from '@/styles/Home.module.css';
 import cardStyles from '@/styles/Card.module.css';
-import { Facebook, Twitter, Instagram, Youtube, User, Calendar, Clock } from 'lucide-react';
-import { useState } from 'react';
+import { Facebook, Twitter, Instagram, Youtube, User, Calendar, Clock, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import AdPlaceholder from '@/components/AdPlaceholder';
+import { supabase } from '@/lib/supabase';
+
+// Define Interface
+interface Article {
+  id: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  image: string;
+  author: string;
+  date: string;
+  views: number;
+  status: string;
+  created_at: string;
+  published_at: string;
+}
 
 export default function Home() {
-  const featured = articles[0];
-  const sideHero = articles.slice(1, 3);
-  const featuredSection = articles.slice(3, 5);
-  const latest = articles.slice(5);
-
-  // Filter articles by category for the new sections
-  const governmentNews = articles.filter(a => a.category === 'Pemerintahan').slice(0, 3);
-  const lawNews = articles.filter(a => a.category === 'Hukum').slice(0, 3);
-  const nationalNews = articles.filter(a => a.category === 'Nasional').slice(0, 3);
+  const [news, setNews] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Sidebar Tab State
   const [activeTab, setActiveTab] = useState<'popular' | 'recent'>('popular');
-  const popularNews = [...articles].slice(0, 5).reverse(); // Deterministic sort to fix hydration mismatch
-  const recentSidebar = articles.slice(0, 5);
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('news')
+          .select('*')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const formattedData = data.map((item: any) => ({
+            ...item,
+            date: item.published_at
+              ? new Date(item.published_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+              : new Date(item.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+          }));
+          setNews(formattedData);
+        }
+      } catch (err) {
+        console.error('Error fetching home news:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', gap: '15px' }}>
+        <Loader2 size={48} className="spin-animation" style={{ color: 'var(--primary-red)' }} />
+        <p style={{ color: '#666' }}>Memuat Berita Terkini...</p>
+        <style jsx>{`
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .spin-animation { animation: spin 1s linear infinite; }
+            `}</style>
+      </div>
+    );
+  }
+
+  // Distribute Data
+  // Ensure we have at least some data to avoid crashes, though normally logic handles undefined gracefully
+  const featured = news[0] || null;
+  const sideHero = news.slice(1, 3);
+  const featuredSection = news.slice(3, 5);
+  const latest = news.slice(5);
+
+  // Filter articles by category
+  const governmentNews = news.filter(a => a.category === 'Pemerintahan').slice(0, 3);
+  const lawNews = news.filter(a => a.category === 'Hukum').slice(0, 3);
+  const nationalNews = news.filter(a => a.category === 'Nasional').slice(0, 3);
+
+  // Sidebar Data
+  // Create a copy for sorting to avoid mutating state directly in a way that affects other views if we were using same reference
+  const popularNews = [...news].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
+  const recentSidebar = news.slice(0, 5);
 
   return (
     <main>
-      {/* ... (Ticker Section remains the same) */}
+      {/* Ticker Section */}
       <div className={styles.tickerSection}>
         <div className={`container ${styles.tickerContainer}`}>
           <div className={styles.tickerLabel}>Trending News</div>
           <div className={styles.tickerContent}>
             <div className={styles.tickerTrack}>
-              {articles.map(a => (
+              {news.slice(0, 5).map(a => (
                 <span key={a.id} style={{ marginRight: '30px' }}>
                   <span style={{ color: '#cc0000' }}>■</span> {a.title}
                 </span>
@@ -48,24 +117,30 @@ export default function Home() {
         <div className={`container ${styles.heroGrid}`}>
 
           {/* Main Featured Article (Left) */}
-          <Link href={`/news/${featured.id}`} className={styles.featuredCard}>
-            <Image
-              src={featured.image}
-              alt={featured.title}
-              fill
-              className={styles.featuredImage}
-              priority
-            />
-            <div className={styles.featuredOverlay}></div>
-            <div className={styles.featuredContent}>
-              <span className={styles.heroCategory}>{featured.category}</span>
-              <h2 className={styles.featuredTitle}>{featured.title}</h2>
-              <div className={styles.featuredMeta}>
-                <span style={{ marginRight: '15px' }}><User size={14} style={{ marginRight: '5px' }} /> {featured.author}</span>
-                <span><Calendar size={14} style={{ marginRight: '5px' }} /> {featured.date}</span>
+          {featured ? (
+            <Link href={`/news/${featured.id}`} className={styles.featuredCard}>
+              <Image
+                src={featured.image || 'https://placehold.co/800x600?text=No+Image'}
+                alt={featured.title}
+                fill
+                className={styles.featuredImage}
+                priority
+              />
+              <div className={styles.featuredOverlay}></div>
+              <div className={styles.featuredContent}>
+                <span className={styles.heroCategory}>{featured.category}</span>
+                <h2 className={styles.featuredTitle}>{featured.title}</h2>
+                <div className={styles.featuredMeta}>
+                  <span style={{ marginRight: '15px' }}><User size={14} style={{ marginRight: '5px' }} /> {featured.author}</span>
+                  <span><Calendar size={14} style={{ marginRight: '5px' }} /> {featured.date}</span>
+                </div>
               </div>
+            </Link>
+          ) : (
+            <div className={styles.featuredCard} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#eee' }}>
+              <p>Belum ada berita utama.</p>
             </div>
-          </Link>
+          )}
 
           {/* Side Hero Articles (Right) */}
           <div className={styles.sideColumn}>
@@ -73,7 +148,7 @@ export default function Home() {
               <Link href={`/news/${article.id}`} key={article.id} className={cardStyles.card} style={{ flex: 1 }}>
                 <div className={cardStyles.imageWrapper}>
                   <Image
-                    src={article.image}
+                    src={article.image || 'https://placehold.co/600x400?text=No+Image'}
                     alt={article.title}
                     fill
                     className={cardStyles.image}
@@ -109,7 +184,7 @@ export default function Home() {
               <div key={article.id} className={cardStyles.card}>
                 <div className={cardStyles.imageWrapper}>
                   <Image
-                    src={article.image}
+                    src={article.image || 'https://placehold.co/600x400?text=No+Image'}
                     alt={article.title}
                     fill
                     className={cardStyles.image}
@@ -124,7 +199,7 @@ export default function Home() {
                   <h3 className={cardStyles.title} style={{ fontSize: '1.5rem', marginBottom: '15px' }}>
                     <Link href={`/news/${article.id}`}>{article.title}</Link>
                   </h3>
-                  <p className={cardStyles.excerpt} style={{ marginBottom: '20px' }}>{article.excerpt}</p>
+                  <p className={cardStyles.excerpt} style={{ marginBottom: '20px' }}>{article.excerpt ? article.excerpt.substring(0, 100) + '...' : ''}</p>
                   <Link href={`/news/${article.id}`} className="btn btn-outline" style={{ display: 'inline-block', padding: '8px 20px', fontSize: '0.8rem' }}>
                     Read More
                   </Link>
@@ -141,25 +216,25 @@ export default function Home() {
               <div className={styles.sectionHeader} style={{ marginBottom: '20px' }}>
                 <h3 className={styles.sectionTitle}>Pemerintahan</h3>
               </div>
-              {governmentNews.map((article, idx) => (
+              {governmentNews.length > 0 ? governmentNews.map((article, idx) => (
                 <div key={article.id} style={{ marginBottom: '20px' }}>
                   {idx === 0 ? (
                     <Link href={`/news/${article.id}`} className={cardStyles.card}>
                       <div className={cardStyles.imageWrapper} style={{ aspectRatio: '4/3' }}>
-                        <Image src={article.image} alt={article.title} fill className={cardStyles.image} />
+                        <Image src={article.image || 'https://placehold.co/600x400?text=No+Image'} alt={article.title} fill className={cardStyles.image} />
                       </div>
                       <h4 className={cardStyles.title} style={{ fontSize: '1rem' }}>{article.title}</h4>
                     </Link>
                   ) : (
                     <Link href={`/news/${article.id}`} className={styles.smallNewsItem}>
                       <div className={styles.smallNewsImage}>
-                        <Image src={article.image} alt={article.title} fill style={{ objectFit: 'cover' }} />
+                        <Image src={article.image || 'https://placehold.co/100x100?text=No+Image'} alt={article.title} fill style={{ objectFit: 'cover' }} />
                       </div>
                       <h4 className={styles.smallNewsTitle}>{article.title}</h4>
                     </Link>
                   )}
                 </div>
-              ))}
+              )) : <p style={{ fontSize: '0.8rem', color: '#888' }}>Belum ada berita pemerintahan.</p>}
             </div>
 
             {/* Law Column */}
@@ -167,25 +242,25 @@ export default function Home() {
               <div className={styles.sectionHeader} style={{ marginBottom: '20px' }}>
                 <h3 className={styles.sectionTitle}>Hukum</h3>
               </div>
-              {lawNews.map((article, idx) => (
+              {lawNews.length > 0 ? lawNews.map((article, idx) => (
                 <div key={article.id} style={{ marginBottom: '20px' }}>
                   {idx === 0 ? (
                     <Link href={`/news/${article.id}`} className={cardStyles.card}>
                       <div className={cardStyles.imageWrapper} style={{ aspectRatio: '4/3' }}>
-                        <Image src={article.image} alt={article.title} fill className={cardStyles.image} />
+                        <Image src={article.image || 'https://placehold.co/600x400?text=No+Image'} alt={article.title} fill className={cardStyles.image} />
                       </div>
                       <h4 className={cardStyles.title} style={{ fontSize: '1rem' }}>{article.title}</h4>
                     </Link>
                   ) : (
                     <Link href={`/news/${article.id}`} className={styles.smallNewsItem}>
                       <div className={styles.smallNewsImage}>
-                        <Image src={article.image} alt={article.title} fill style={{ objectFit: 'cover' }} />
+                        <Image src={article.image || 'https://placehold.co/100x100?text=No+Image'} alt={article.title} fill style={{ objectFit: 'cover' }} />
                       </div>
                       <h4 className={styles.smallNewsTitle}>{article.title}</h4>
                     </Link>
                   )}
                 </div>
-              ))}
+              )) : <p style={{ fontSize: '0.8rem', color: '#888' }}>Belum ada berita hukum.</p>}
             </div>
 
             {/* National Column */}
@@ -193,25 +268,25 @@ export default function Home() {
               <div className={styles.sectionHeader} style={{ marginBottom: '20px' }}>
                 <h3 className={styles.sectionTitle}>Nasional</h3>
               </div>
-              {nationalNews.map((article, idx) => (
+              {nationalNews.length > 0 ? nationalNews.map((article, idx) => (
                 <div key={article.id} style={{ marginBottom: '20px' }}>
                   {idx === 0 ? (
                     <Link href={`/news/${article.id}`} className={cardStyles.card}>
                       <div className={cardStyles.imageWrapper} style={{ aspectRatio: '4/3' }}>
-                        <Image src={article.image} alt={article.title} fill className={cardStyles.image} />
+                        <Image src={article.image || 'https://placehold.co/600x400?text=No+Image'} alt={article.title} fill className={cardStyles.image} />
                       </div>
                       <h4 className={cardStyles.title} style={{ fontSize: '1rem' }}>{article.title}</h4>
                     </Link>
                   ) : (
                     <Link href={`/news/${article.id}`} className={styles.smallNewsItem}>
                       <div className={styles.smallNewsImage}>
-                        <Image src={article.image} alt={article.title} fill style={{ objectFit: 'cover' }} />
+                        <Image src={article.image || 'https://placehold.co/100x100?text=No+Image'} alt={article.title} fill style={{ objectFit: 'cover' }} />
                       </div>
                       <h4 className={styles.smallNewsTitle}>{article.title}</h4>
                     </Link>
                   )}
                 </div>
-              ))}
+              )) : <p style={{ fontSize: '0.8rem', color: '#888' }}>Belum ada berita nasional.</p>}
             </div>
 
           </div>
@@ -229,7 +304,7 @@ export default function Home() {
               <div key={article.id} className={cardStyles.cardHorizontal}>
                 <Link href={`/news/${article.id}`} className={cardStyles.imageWrapper}>
                   <Image
-                    src={article.image}
+                    src={article.image || 'https://placehold.co/600x400?text=No+Image'}
                     alt={article.title}
                     fill
                     className={cardStyles.image}
@@ -243,7 +318,7 @@ export default function Home() {
                     <span style={{ color: 'var(--primary-red)', marginRight: '10px' }}>{article.category}</span>
                     <span>{article.date}</span>
                   </div>
-                  <p className={cardStyles.excerpt}>{article.excerpt}</p>
+                  <p className={cardStyles.excerpt}>{article.excerpt ? article.excerpt.substring(0, 100) + '...' : ''}</p>
                 </div>
               </div>
             ))}
@@ -299,7 +374,7 @@ export default function Home() {
               {(activeTab === 'popular' ? popularNews : recentSidebar).map((article, idx) => (
                 <div key={idx} className={styles.tabItem}>
                   <div className={styles.tabImageWrapper}>
-                    <Image src={article.image} alt={article.title} fill style={{ objectFit: 'cover' }} />
+                    <Image src={article.image || 'https://placehold.co/100x100?text=No+Image'} alt={article.title} fill style={{ objectFit: 'cover' }} />
                     <div className={styles.tabRank}>
                       {idx + 1}
                     </div>
@@ -328,30 +403,6 @@ export default function Home() {
             </form>
           </div>
 
-          {/* Info Pemerintahan Widget */}
-          <div className={styles.sectionHeader} style={{ marginTop: '30px' }}>
-            <h3 className={styles.sectionTitle}>Info Pemerintahan</h3>
-          </div>
-          <div className={styles.trendingList}>
-            {governmentNews.map((article, idx) => (
-              <div key={`trending-${idx}`} className={styles.trendingItem}>
-                <div className={styles.trendingCategory}>
-                  {article.category}
-                </div>
-                <div className={styles.trendingMeta}>
-                  <span>By {article.author}</span> {article.date}
-                </div>
-                <Link href={`/news/${article.id}`}>
-                  <h4 className={styles.trendingTitle}>
-                    {article.title}
-                  </h4>
-                </Link>
-              </div>
-            ))}
-          </div>
-
-
-
           {/* Video Widget */}
           <div className={styles.sectionHeader} style={{ marginTop: '30px' }}>
             <h3 className={styles.sectionTitle}>Video Pilihan</h3>
@@ -379,25 +430,6 @@ export default function Home() {
           <div className={styles.tagsCloud}>
             {['Property', 'Sea', 'Programming', 'Life Style', 'Technology', 'Framework', 'Sport', 'Game', 'WFH'].map(tag => (
               <Link href="#" key={tag} className={styles.tagItem}>#{tag}</Link>
-            ))}
-          </div>
-
-          {/* Category List Widget */}
-          <div className={styles.sectionHeader}>
-            <h3 className={styles.sectionTitle}>Category</h3>
-          </div>
-          <div className={styles.categoryListWidget}>
-            {[
-              { name: 'Life Style', count: 14 },
-              { name: 'Photos', count: 4 },
-              { name: 'Video', count: 2 },
-              { name: 'Trending', count: 8 },
-              { name: 'Travel', count: 10 },
-            ].map(cat => (
-              <Link href="#" key={cat.name} className={styles.categoryListItem}>
-                <span>{cat.name}</span>
-                <span className={styles.categoryCount}>{cat.count}</span>
-              </Link>
             ))}
           </div>
 

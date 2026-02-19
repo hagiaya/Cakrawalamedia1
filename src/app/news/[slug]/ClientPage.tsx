@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { articles, categories, Article } from '@/lib/data';
+import { categories, Article as MockArticle } from '@/lib/data'; // Keep MockArticle for type reference or define new one
 import Image from 'next/image';
 import styles from '@/styles/Home.module.css';
 import cardStyles from '@/styles/Card.module.css';
@@ -15,6 +15,23 @@ import ReadingProgressBar from '@/components/ReadingProgressBar';
 import FloatingShare from '@/components/FloatingShare';
 import RelatedArticles from '@/components/RelatedArticles';
 import ArticleComments from '@/components/ArticleComments';
+import { supabase } from '@/lib/supabase';
+
+// Define Article type matching DB
+interface Article {
+    id: string;
+    title: string;
+    excerpt: string;
+    content: string;
+    category: string;
+    image: string;
+    author: string;
+    date: string; // we will map created_at or published_at to this
+    views: number;
+    status: string;
+    created_at: string;
+    published_at: string;
+}
 
 export default function ClientPage() {
     const params = useParams();
@@ -25,31 +42,70 @@ export default function ClientPage() {
     const slug = (Array.isArray(slugValue) ? slugValue[0] : slugValue) || '';
 
     const [isLoading, setIsLoading] = useState(true);
+    const [article, setArticle] = useState<Article | null>(null);
+    const [isCategory, setIsCategory] = useState(false);
+    const [categoryName, setCategoryName] = useState('');
 
     useEffect(() => {
-        // Simulate network delay
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 800);
-        return () => clearTimeout(timer);
+        const fetchData = async () => {
+            setIsLoading(true);
+
+            // Check if slug is a known category
+            const categoryMatch = categories.find(c => c.toLowerCase() === slug.toLowerCase());
+
+            if (categoryMatch) {
+                setIsCategory(true);
+                setCategoryName(categoryMatch);
+                setIsLoading(false);
+                return;
+            }
+
+            // If not category, try to fetch as article ID
+            try {
+                const { data, error } = await supabase
+                    .from('news')
+                    .select('*')
+                    .eq('id', slug)
+                    .single();
+
+                if (data && !error) {
+                    setArticle({
+                        ...data,
+                        date: data.published_at ? new Date(data.published_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(data.created_at).toLocaleDateString()
+                    });
+                } else {
+                    // Not found or error
+                    setArticle(null);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (slug) {
+            fetchData();
+        }
     }, [slug]);
 
-    // Check if it's a category
-    const categoryMatch = categories.find(c => c.toLowerCase() === slug.toLowerCase());
-
-    if (categoryMatch) {
-        return isLoading
-            ? <CategorySkeleton category={categoryMatch} />
-            : <CategoryListView category={categoryMatch} searchParams={searchParams} router={router} />;
+    if (isLoading) {
+        return (
+            <div className={`container ${styles.mainContent}`}>
+                <div className={styles.newsFeed}><ArticleSkeleton /></div>
+                <aside className={styles.sidebar}>
+                    <div style={{ background: 'var(--bg-light-grey)', height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>
+                </aside>
+            </div>
+        );
     }
 
-    // Check if it's an article
-    const article = articles.find(a => a.id === slug);
+    if (isCategory) {
+        return <CategoryListView category={categoryName} searchParams={searchParams} router={router} />;
+    }
 
     if (article) {
-        return isLoading
-            ? <div className={`container ${styles.mainContent}`}><div className={styles.newsFeed}><ArticleSkeleton /></div><aside className={styles.sidebar}><div style={{ background: 'var(--bg-light-grey)', height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div></aside></div>
-            : <ArticleDetailView article={article} />;
+        return <ArticleDetailView article={article} />;
     }
 
     return (
@@ -64,11 +120,31 @@ export default function ClientPage() {
 function CategoryListView({ category, searchParams, router }: { category: string, searchParams: any, router: any }) {
     const page = parseInt(searchParams.get('page') || '1');
     const itemsPerPage = 6;
+    const [categoryArticles, setCategoryArticles] = useState<Article[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const categoryArticles = articles.filter(a => a.category.toLowerCase() === category.toLowerCase());
+    useEffect(() => {
+        const fetchCategoryNews = async () => {
+            setLoading(true);
+            const { data } = await supabase
+                .from('news')
+                .select('*')
+                .eq('category', category)
+                .eq('status', 'published')
+                .order('created_at', { ascending: false });
 
-    // Sort logic if needed (e.g. by date desc) - assuming data is already sorted or we sort
-    // categoryArticles.sort(...) 
+            if (data) {
+                const formattedOptions = data.map(item => ({
+                    ...item,
+                    date: item.published_at ? new Date(item.published_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString()
+                }));
+                setCategoryArticles(formattedOptions);
+            }
+            setLoading(false);
+        };
+        fetchCategoryNews();
+    }, [category]);
+
 
     const totalPages = Math.ceil(categoryArticles.length / itemsPerPage);
     const displayedArticles = categoryArticles.slice(
@@ -79,6 +155,8 @@ function CategoryListView({ category, searchParams, router }: { category: string
     const handlePageChange = (newPage: number) => {
         router.push(`/news/${category.toLowerCase()}?page=${newPage}`);
     };
+
+    if (loading) return <CategorySkeleton category={category} />;
 
     return (
         <div className={`container ${styles.mainContent}`}>
@@ -96,7 +174,7 @@ function CategoryListView({ category, searchParams, router }: { category: string
                                 <div key={article.id} className={cardStyles.cardHorizontal}>
                                     <Link href={`/news/${article.id}`} className={cardStyles.imageWrapper}>
                                         <Image
-                                            src={article.image}
+                                            src={article.image || 'https://placehold.co/600x400?text=No+Image'}
                                             alt={article.title}
                                             fill
                                             className={cardStyles.image}
@@ -110,7 +188,7 @@ function CategoryListView({ category, searchParams, router }: { category: string
                                             <span style={{ color: 'var(--primary-red)', marginRight: '10px' }}>{article.category}</span>
                                             <span><Clock size={12} style={{ marginRight: '4px' }} />{article.date}</span>
                                         </div>
-                                        <p className={cardStyles.excerpt}>{article.excerpt}</p>
+                                        <p className={cardStyles.excerpt}>{article.excerpt ? article.excerpt.substring(0, 100) + '...' : ''}</p>
                                     </div>
                                 </div>
                             ))}
@@ -132,15 +210,41 @@ function CategoryListView({ category, searchParams, router }: { category: string
 }
 
 function ArticleDetailView({ article }: { article: Article }) {
-    const [views, setViews] = useState(article.views || Math.floor(Math.random() * 1000) + 100);
+    const [views, setViews] = useState(article.views || 0);
+    const [popularNews, setPopularNews] = useState<Article[]>([]);
 
     useEffect(() => {
-        // Simulate incrementing view count on client side mount
-        const hasViewed = sessionStorage.getItem(`viewed_${article.id}`);
-        if (!hasViewed) {
-            setViews(prev => prev + 1);
-            sessionStorage.setItem(`viewed_${article.id}`, 'true');
-        }
+        // Increment view count
+        const incrementView = async () => {
+            const hasViewed = sessionStorage.getItem(`viewed_${article.id}`);
+            if (!hasViewed) {
+                await supabase.rpc('increment_view', { row_id: article.id }); // Assuming RPC or just client side update for now
+                // Fallback direct update if RPC not set
+                // const { error } = await supabase.from('news').update({ views: article.views + 1 }).eq('id', article.id);
+                setViews(prev => prev + 1);
+                sessionStorage.setItem(`viewed_${article.id}`, 'true');
+            }
+        };
+        incrementView();
+
+        // Fetch popular news
+        const fetchPopular = async () => {
+            const { data } = await supabase
+                .from('news')
+                .select('*')
+                .eq('status', 'published')
+                .order('views', { ascending: false })
+                .limit(5);
+
+            if (data) {
+                const formatted = data.map(item => ({
+                    ...item,
+                    date: item.published_at ? new Date(item.published_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString()
+                }));
+                setPopularNews(formatted);
+            }
+        };
+        fetchPopular();
     }, [article.id]);
 
     return (
@@ -177,25 +281,23 @@ function ArticleDetailView({ article }: { article: Article }) {
                     </div>
 
                     <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', marginBottom: '30px', overflow: 'hidden', borderRadius: '4px' }}>
-                        <Image src={article.image} alt={article.title} fill style={{ objectFit: 'cover' }} priority />
+                        <Image src={article.image || 'https://placehold.co/800x450?text=No+Image'} alt={article.title} fill style={{ objectFit: 'cover' }} priority />
                     </div>
 
                     <article style={{ fontSize: '1.1rem', lineHeight: '1.8', color: 'var(--text-dark-grey)', fontFamily: 'var(--font-body)' }}>
                         <p style={{ fontWeight: '500', fontSize: '1.2rem', marginBottom: '30px', color: 'var(--text-black)' }}>{article.excerpt}</p>
 
-                        <p style={{ marginBottom: '20px' }}>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-
-                        <p style={{ marginBottom: '20px' }}>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
-
-                        <h3 style={{ marginTop: '40px', marginBottom: '20px', fontSize: '1.5rem' }}>Analisis Mendalam</h3>
-
-                        <p style={{ marginBottom: '20px' }}>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.</p>
-
-                        <div style={{ background: 'var(--bg-light-grey)', padding: '20px', borderLeft: '4px solid var(--primary-red)', margin: '30px 0', fontStyle: 'italic' }}>
-                            "Kami berkomitmen untuk terus meningkatkan kualitas layanan digital di Indonesia demi masa depan yang lebih baik." - Kutipan Narasumber
-                        </div>
-
-                        <p style={{ marginBottom: '20px' }}>Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?</p>
+                        {article.content ? (
+                            article.content.split('\n\n').map((paragraph, index) => (
+                                <p key={index} style={{ marginBottom: '20px' }}>
+                                    {paragraph.trim()}
+                                </p>
+                            ))
+                        ) : (
+                            <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '4px', textAlign: 'center', fontStyle: 'italic', color: '#6c757d' }}>
+                                Konten berita belum tersedia.
+                            </div>
+                        )}
                     </article>
 
                     <div style={{ marginTop: '50px', borderTop: '1px solid var(--border-color)', paddingTop: '30px' }}>
@@ -213,6 +315,9 @@ function ArticleDetailView({ article }: { article: Article }) {
                         </div>
                     </div>
 
+                    {/* Use existing component but it likely uses mock data internally. 
+                        Ideally RelatedArticles should also be refactored to fetch real data. 
+                        For now we pass props just in case it helps. */}
                     <RelatedArticles currentArticleId={article.id} category={article.category} />
                     <ArticleComments articleId={article.id} />
                 </div>
@@ -222,20 +327,31 @@ function ArticleDetailView({ article }: { article: Article }) {
                     <div style={{ marginBottom: '30px' }}>
                         <h3 className={styles.sectionTitle}>Berita Terpopuler</h3>
                         <div style={{ marginTop: '20px' }}>
-                            {articles.slice(0, 4).map((a, i) => (
-                                <div key={a.id} style={{ display: 'flex', marginBottom: '20px', alignItems: 'flex-start' }}>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-meta)', opacity: 0.3, marginRight: '15px', lineHeight: 1 }}>{i + 1}</div>
-                                    <div>
-                                        <Link href={`/news/${a.id}`} style={{ fontWeight: '700', lineHeight: '1.3', display: 'block', marginBottom: '5px', fontSize: '0.95rem' }} className={styles.hoverLink}>
-                                            {a.title}
-                                        </Link>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-meta)' }}>{a.date}</span>
+                            {popularNews.length > 0 ? (
+                                popularNews.map((a, i) => (
+                                    <div key={a.id} style={{ display: 'flex', marginBottom: '20px', alignItems: 'flex-start' }}>
+                                        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-meta)', opacity: 0.3, marginRight: '15px', lineHeight: 1 }}>{i + 1}</div>
+                                        <div>
+                                            <Link href={`/news/${a.id}`} style={{ fontWeight: '700', lineHeight: '1.3', display: 'block', marginBottom: '5px', fontSize: '0.95rem' }} className={styles.hoverLink}>
+                                                {a.title}
+                                            </Link>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-meta)' }}>{a.date}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p style={{ color: '#888' }}>Memuat berita populer...</p>
+                            )}
                         </div>
                     </div>
 
+                    {/* 
+                      AD IMPLEMENTATION NOTE:
+                      To ensure this does NOT affect Supabase/Vercel bandwidth:
+                      1. Use standard <img> tag for external ad servers (Google Ads, etc).
+                      2. If using hosted images, upload them to Cloudinary.
+                      3. If using next/image, add 'unoptimized' prop to bypass Vercel processing.
+                    */}
                     <div style={{ background: 'var(--bg-light-grey)', height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-grey)', textTransform: 'uppercase', marginBottom: '30px' }}>
                         Tower Ad (160x600)
                     </div>
