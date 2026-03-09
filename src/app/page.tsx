@@ -15,7 +15,7 @@ interface Article {
   id: string;
   title: string;
   excerpt: string;
-  content: string;
+  content?: string;
   category: string;
   image: string;
   author: string;
@@ -39,9 +39,10 @@ export default function Home() {
       try {
         const { data, error } = await supabase
           .from('news')
-          .select('*')
+          .select('id, title, excerpt, category, image, author, date, views, status, created_at, published_at')
           .eq('status', 'published')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(60);
 
         if (error) throw error;
 

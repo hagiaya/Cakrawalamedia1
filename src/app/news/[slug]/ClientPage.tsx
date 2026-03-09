@@ -22,7 +22,7 @@ interface Article {
     id: string;
     title: string;
     excerpt: string;
-    content: string;
+    content?: string;
     category: string;
     image: string;
     author: string;
@@ -128,7 +128,7 @@ function CategoryListView({ category, searchParams, router }: { category: string
             setLoading(true);
             const { data } = await supabase
                 .from('news')
-                .select('*')
+                .select('id, title, excerpt, category, image, author, views, status, created_at, published_at')
                 .eq('category', category)
                 .eq('status', 'published')
                 .order('created_at', { ascending: false });
@@ -231,7 +231,7 @@ function ArticleDetailView({ article }: { article: Article }) {
         const fetchPopular = async () => {
             const { data } = await supabase
                 .from('news')
-                .select('*')
+                .select('id, title, excerpt, category, image, author, views, status, created_at, published_at')
                 .eq('status', 'published')
                 .order('views', { ascending: false })
                 .limit(5);
