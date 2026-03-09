@@ -288,11 +288,10 @@ function ArticleDetailView({ article }: { article: Article }) {
                         <p style={{ fontWeight: '500', fontSize: '1.2rem', marginBottom: '30px', color: 'var(--text-black)' }}>{article.excerpt}</p>
 
                         {article.content ? (
-                            article.content.split('\n\n').map((paragraph, index) => (
-                                <p key={index} style={{ marginBottom: '20px' }}>
-                                    {paragraph.trim()}
-                                </p>
-                            ))
+                            <div
+                                className={styles.articleBody}
+                                dangerouslySetInnerHTML={{ __html: article.content }}
+                            />
                         ) : (
                             <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '4px', textAlign: 'center', fontStyle: 'italic', color: '#6c757d' }}>
                                 Konten berita belum tersedia.

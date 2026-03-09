@@ -650,3 +650,20 @@
         /* Shorter hero card on mobile */
     }
 }
+
+.articleBody p {
+    margin-bottom: 20px;
+    line-height: 1.8;
+}
+
+.articleBody a {
+    color: var(--primary-red);
+    text-decoration: underline;
+}
+
+.articleBody img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 20px 0;
+}
